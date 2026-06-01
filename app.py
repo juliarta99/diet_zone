@@ -28,6 +28,12 @@ from genetic_algorithm import (
     verifikasi_constraint, THRESHOLD, GEN_WAKTU_MAP
 )
 
+from evaluation import (
+    run_ag, evaluasi_komparatif,
+    validasi_ketercapaian_gizi, validasi_relevansi_menu,
+    bandingkan_menu, rangkuman_evaluasi
+)
+
 # ═══════════════════════════════════════════════════════════════════
 # KONFIGURASI HALAMAN
 # ═══════════════════════════════════════════════════════════════════
@@ -72,12 +78,27 @@ st.markdown("""
 # ═══════════════════════════════════════════════════════════════════
 # SESSION STATE
 # ═══════════════════════════════════════════════════════════════════
-if "kb"              not in st.session_state: st.session_state.kb              = None
-if "hasil_7_hari"    not in st.session_state: st.session_state.hasil_7_hari    = None
-if "history_best"    not in st.session_state: st.session_state.history_best    = []
-if "history_avg"     not in st.session_state: st.session_state.history_avg     = []
-if "db_config"       not in st.session_state: st.session_state.db_config       = None
-if "db_connected"    not in st.session_state: st.session_state.db_connected    = False
+for key, val in {
+    "kb":                    None,
+    "db_config":             None,
+    "db_connected":          False,
+    "hasil_7_hari":          None,
+    "history_best":          [],
+    "history_avg":           [],
+    "hasil_kb":              None,
+    "hasil_standar":         None,
+    "hist_best_kb":          [],
+    "hist_avg_kb":           [],
+    "hasil_komparatif":      None,
+    "validasi_gizi_kb":      None,
+    "validasi_relevansi_kb": None,
+    "validasi_gizi_std":     None,
+    "validasi_relavansi_std":None,
+    "perbandingan_menu":     None,
+    "rangkuman":             None,
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -161,6 +182,12 @@ with st.sidebar:
     - Serat: **≥8,33 g/waktu**
     """)
 
+    st.divider()
+    st.markdown("### Parameter Evaluasi")
+    n_run_eval = st.slider("Jumlah Run Eksperimen", 3, 10, 5, 1)
+    n_gen_eval = st.slider("Generasi (Evaluasi)",  50, 1000, 100, 50)
+    st.caption("Gunakan generasi lebih kecil untuk evaluasi cepat")
+
 
 # ═══════════════════════════════════════════════════════════════════
 # HEADER UTAMA
@@ -178,11 +205,12 @@ title_tab2 = f"Hasil Menu {len_day} Hari" if len_day > 0 else "Hasil Menu"
 # ═══════════════════════════════════════════════════════════════════
 # TAB UTAMA
 # ═══════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Jalankan AG",
     title_tab2,
     "Analisis Fitness",
     "Verifikasi Constraint",
+    "Evaluasi"
 ])
 
 
@@ -503,3 +531,327 @@ with tab4:
         waktu makan yang sama dengan posisi gen yang dimutasi —
         constraint dipertahankan di setiap kromosom anak.
         """)
+
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 5 — EVALUASI
+# ════════════════════════════════════════════════════════════════════
+with tab5:
+    st.markdown("## Evaluasi: Pengaruh Knowledge-Based Constraint")
+    st.markdown("""
+    Evaluasi dilakukan dalam **dua dimensi**:
+    - **(a) Matematis** — perbandingan nilai fitness KB-AG vs AG Standar (N run)
+    - **(b) Praktis** — validasi relevansi menu dan ketercapaian threshold gizi
+    """)
+    st.divider()
+
+    if st.session_state.kb is None:
+        st.warning("Hubungkan database terlebih dahulu.")
+    else:
+        kb = st.session_state.kb
+
+        # ── Tombol jalankan evaluasi ──────────────────────────────
+        if st.button("▶ Jalankan Evaluasi Komparatif (Standar vs KB-AG)",
+                     type="primary", use_container_width=True):
+
+            prog   = st.progress(0)
+            status = st.empty()
+            total_runs = n_run_eval * 2
+            run_counter = [0]
+
+            def cb_eval(fase, run, total, **kw):
+                run_counter[0] += 1
+                prog.progress(min(run_counter[0]/total_runs, 1.0))
+                status.markdown(f"**{fase}** — Run {run}/{total}")
+
+            t0 = time.time()
+            hk = evaluasi_komparatif(
+                kb=kb, n_run=n_run_eval,
+                pop_size=pop_size, n_generasi=n_gen_eval,
+                crossover_rate=crossover_rate,
+                mutation_rate=mutation_rate,
+                n_hari=n_hari, callback=cb_eval
+            )
+            elapsed = time.time()-t0
+            prog.progress(1.0)
+            status.success(f"Evaluasi selesai dalam {elapsed:.1f} detik")
+
+            # Ambil satu run kb_ag untuk validasi output
+            hasil_kb_single = run_ag(
+                kb=kb, mode='kb_ag', pop_size=pop_size,
+                n_generasi=n_gen_eval, n_hari=n_hari
+            )
+            hasil_standar_single = run_ag(
+                kb=kb, mode='standar', pop_size=pop_size,
+                n_generasi=n_gen_eval, n_hari=n_hari
+            )
+
+            vg       = validasi_ketercapaian_gizi(hasil_kb_single.menu_7_hari)
+            vg_std   = validasi_ketercapaian_gizi(hasil_standar_single.menu_7_hari)
+            vr       = validasi_relevansi_menu(hasil_kb_single.menu_7_hari, kb)
+            vr_std   = validasi_relevansi_menu(hasil_standar_single.menu_7_hari, kb)
+            bm  = bandingkan_menu(hasil_standar_single.menu_7_hari,
+                                  hasil_kb_single.menu_7_hari, kb, n_hari=3)
+            rng = rangkuman_evaluasi(hk, vg, vr)
+
+            st.session_state.hasil_komparatif       = hk
+            st.session_state.validasi_gizi_kb       = vg
+            st.session_state.validasi_gizi_std      = vg_std
+            st.session_state.validasi_relevansi_kb  = vr
+            st.session_state.validasi_relevansi_std = vr_std
+            st.session_state.perbandingan_menu      = bm
+            st.session_state.rangkuman              = rng
+
+        # ── Tampilkan hasil jika sudah ada ────────────────────────
+        if st.session_state.hasil_komparatif:
+            hk   = st.session_state.hasil_komparatif
+            vg   = st.session_state.validasi_gizi_kb
+            vg_std = st.session_state.validasi_gizi_std
+            vr   = st.session_state.validasi_relevansi_kb
+            vr_std = st.session_state.validasi_relevansi_std
+            bm   = st.session_state.perbandingan_menu
+            rng  = st.session_state.rangkuman
+
+            # ── Ringkasan Eksekutif ───────────────────────────────
+            st.markdown("---")
+            st.markdown("### Ringkasan Eksekutif")
+            km = rng["kesimpulan_matematis"]
+            kp = rng["kesimpulan_praktis"]
+
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("Fitness KB-AG",    f"{km['rata_kb']:.4f}",
+                      f"{km['selisih_fitness']:+.4f} vs Standar", delta_color="inverse")
+            c2.metric("Fitness Standar",  f"{km['rata_standar']:.4f}")
+            c3.metric("Baseline (2024)",  "15.54",
+                      f"{km['rata_kb']-15.54:+.4f}", delta_color="inverse")
+            c4.metric("Constraint Valid", f"{kp['constraint_valid_pct']}%")
+
+            if km["kb_ag_lebih_baik"]:
+                st.success(f"KB-AG **lebih baik** secara matematis — peningkatan fitness {km['pct_peningkatan']:.1f}% vs AG Standar")
+            else:
+                st.info("AG Standar menghasilkan fitness sedikit lebih baik, namun tidak memenuhi constraint waktu makan")
+
+            st.divider()
+
+            # ── Dimensi (a): Evaluasi Komparatif ─────────────────
+            st.markdown("### (a) Evaluasi Komparatif — Matematis")
+
+            # Statistik deskriptif
+            stat_s = hk["stat_standar"]
+            stat_k = hk["stat_kb"]
+            df_stat = pd.DataFrame([
+                {"Mode":"AG Standar (tanpa constraint)",
+                 "Rata-rata Fitness": round(stat_s.rata_rata,4),
+                 "Std Deviasi":       round(stat_s.std_deviasi,4),
+                 "Terbaik":           round(stat_s.terbaik,4),
+                 "Terburuk":          round(stat_s.terburuk,4)},
+                {"Mode":"KB-AG (dengan constraint)",
+                 "Rata-rata Fitness": round(stat_k.rata_rata,4),
+                 "Std Deviasi":       round(stat_k.std_deviasi,4),
+                 "Terbaik":           round(stat_k.terbaik,4),
+                 "Terburuk":          round(stat_k.terburuk,4)},
+                {"Mode":"Baseline Yuliastuti (2024)",
+                 "Rata-rata Fitness": 15.54,
+                 "Std Deviasi": "-",
+                 "Terbaik": 14.0,
+                 "Terburuk": "-"},
+            ])
+            st.markdown(f"**Tabel Statistik Deskriptif** ({stat_s.n_run} run pengujian)")
+            st.dataframe(df_stat, hide_index=True, use_container_width=True)
+
+            # Kurva konvergensi rata-rata
+            st.markdown("**Kurva Konvergensi Rata-rata** (rata-rata dari semua run)")
+            kurva_s = hk["kurva_standar"]
+            kurva_k = hk["kurva_kb"]
+            min_len = min(len(kurva_s), len(kurva_k))
+            if min_len > 0:
+                st.line_chart(pd.DataFrame({
+                    "AG Standar": kurva_s[:min_len],
+                    "KB-AG":      kurva_k[:min_len],
+                }), height=320)
+
+            # Distribusi fitness per run
+            st.markdown("**Distribusi Fitness per Run**")
+            df_run = pd.DataFrame({
+                "Run":      list(range(1, stat_s.n_run+1)),
+                "AG Standar": [round(f,4) for f in hk["fitness_standar_list"]],
+                "KB-AG":      [round(f,4) for f in hk["fitness_kb_list"]],
+            })
+            st.dataframe(df_run, hide_index=True, use_container_width=True)
+
+            st.divider()
+
+            # ── Dimensi (b): Validasi Praktis ────────────────────
+            st.markdown("### (b) Validasi Output — Praktis")
+
+            # ── Ketercapaian Threshold Gizi ──────────────────────
+            st.markdown("#### Ketercapaian Threshold Diet Zone per Waktu Makan")
+
+            def hitung_pct_threshold(vg_data):
+                total = len(vg_data)
+                return {
+                    "pct_karbo":   round(sum(1 for r in vg_data if r["memenuhi_karbo"])   / total * 100, 1),
+                    "pct_protein": round(sum(1 for r in vg_data if r["memenuhi_protein"]) / total * 100, 1),
+                    "pct_lemak":   round(sum(1 for r in vg_data if r["memenuhi_lemak"])   / total * 100, 1),
+                }
+
+            pct_kb  = hitung_pct_threshold(vg)
+            pct_std = hitung_pct_threshold(vg_std)
+
+            col_kb, col_std = st.columns(2)
+            with col_kb:
+                st.markdown("**KB-AG**")
+                df_gizi_kb = pd.DataFrame(vg)[[
+                    "hari","waktu","pct_karbo","pct_protein","pct_lemak","serat_g","euclidean"
+                ]]
+                df_gizi_kb.columns = ["Hari","Waktu","%Karbo","%Protein","%Lemak","Serat(g)","Euclidean"]
+                st.dataframe(df_gizi_kb, hide_index=True, use_container_width=True)
+
+            with col_std:
+                st.markdown("**AG Standar**")
+                df_gizi_std = pd.DataFrame(vg_std)[[
+                    "hari","waktu","pct_karbo","pct_protein","pct_lemak","serat_g","euclidean"
+                ]]
+                df_gizi_std.columns = ["Hari","Waktu","%Karbo","%Protein","%Lemak","Serat(g)","Euclidean"]
+                st.dataframe(df_gizi_std, hide_index=True, use_container_width=True)
+
+            st.markdown("#### Perbandingan Ketercapaian Threshold (±10%)")
+            df_thr = pd.DataFrame([
+                {
+                    "Metrik":                   "Memenuhi threshold karbo (±10%)",
+                    "KB-AG":                    f"{pct_kb['pct_karbo']}%",
+                    "AG Standar":               f"{pct_std['pct_karbo']}%",
+                    "Selisih (KB - Std)":       f"{pct_kb['pct_karbo'] - pct_std['pct_karbo']:+.1f}%",
+                },
+                {
+                    "Metrik":                   "Memenuhi threshold protein (±10%)",
+                    "KB-AG":                    f"{pct_kb['pct_protein']}%",
+                    "AG Standar":               f"{pct_std['pct_protein']}%",
+                    "Selisih (KB - Std)":       f"{pct_kb['pct_protein'] - pct_std['pct_protein']:+.1f}%",
+                },
+                {
+                    "Metrik":                   "Memenuhi threshold lemak (±10%)",
+                    "KB-AG":                    f"{pct_kb['pct_lemak']}%",
+                    "AG Standar":               f"{pct_std['pct_lemak']}%",
+                    "Selisih (KB - Std)":       f"{pct_kb['pct_lemak'] - pct_std['pct_lemak']:+.1f}%",
+                },
+            ])
+            st.dataframe(df_thr, hide_index=True, use_container_width=True)
+
+            st.divider()
+
+            # ── Validasi Relevansi Menu ───────────────────────────
+            st.markdown("#### Validasi Relevansi Menu")
+
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                st.markdown("**KB-AG**")
+                st.metric("Constraint waktu makan valid",
+                          f"{vr['pct_constraint_valid']}%",
+                          f"{vr['valid_gen']}/{vr['total_gen']} gen valid")
+                st.metric("Duplikat bahan dalam satu hari",
+                          str(vr['duplikat_total']),
+                          "tidak ada duplikat" if vr['duplikat_total'] == 0
+                          else "item terduplikasi")
+                if vr["pct_constraint_valid"] == 100:
+                    st.success("Seluruh gen valid untuk waktu makannya")
+                else:
+                    st.error(f"{100 - vr['pct_constraint_valid']:.1f}% gen melanggar constraint")
+
+            with col_r2:
+                st.markdown("**AG Standar**")
+                st.metric("Constraint waktu makan valid",
+                          f"{vr_std['pct_constraint_valid']}%",
+                          f"{vr_std['valid_gen']}/{vr_std['total_gen']} gen valid")
+                st.metric("Duplikat bahan dalam satu hari",
+                          str(vr_std['duplikat_total']),
+                          "tidak ada duplikat" if vr_std['duplikat_total'] == 0
+                          else "item terduplikasi")
+                if vr_std["pct_constraint_valid"] == 100:
+                    st.success("Seluruh gen valid untuk waktu makannya")
+                else:
+                    st.warning(f"{100 - vr_std['pct_constraint_valid']:.1f}% gen tidak sesuai waktu makan")
+
+            # Tabel ringkasan relevansi berdampingan
+            st.markdown("#### Ringkasan Perbandingan Relevansi")
+            df_rel = pd.DataFrame([
+                {
+                    "Metrik":             "Constraint waktu makan valid (%)",
+                    "KB-AG":              f"{vr['pct_constraint_valid']}%",
+                    "AG Standar":         f"{vr_std['pct_constraint_valid']}%",
+                    "Selisih (KB - Std)": f"{vr['pct_constraint_valid'] - vr_std['pct_constraint_valid']:+.1f}%",
+                },
+                {
+                    "Metrik":             "Gen valid (dari total 63 gen / 7 hari)",
+                    "KB-AG":              f"{vr['valid_gen']}/{vr['total_gen']}",
+                    "AG Standar":         f"{vr_std['valid_gen']}/{vr_std['total_gen']}",
+                    "Selisih (KB - Std)": f"{vr['valid_gen'] - vr_std['valid_gen']:+d} gen",
+                },
+                {
+                    "Metrik":             "Duplikat bahan dalam satu hari",
+                    "KB-AG":              str(vr['duplikat_total']),
+                    "AG Standar":         str(vr_std['duplikat_total']),
+                    "Selisih (KB - Std)": f"{vr['duplikat_total'] - vr_std['duplikat_total']:+d}",
+                },
+            ])
+            st.dataframe(df_rel, hide_index=True, use_container_width=True)
+
+            st.divider()
+
+            # ── Perbandingan Menu Konkret ─────────────────────────
+            st.markdown("### 🍽️ Perbandingan Menu Konkret (3 Hari Pertama)")
+            HARI_L = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"]
+            for item in bm:
+                label = HARI_L[item["hari"]-1]
+                st.markdown(f"**{label}**")
+                c_s, c_k = st.columns(2)
+                with c_s:
+                    st.markdown(f"**AG Standar** — Fitness: `{item['standar']['fitness']}`  "
+                                f"Constraint Valid: `{item['standar']['pct_valid']}%`")
+                    st.markdown(f"*Pagi:* {', '.join(item['standar']['pagi'])}")
+                    st.markdown(f"*Siang:* {', '.join(item['standar']['siang'])}")
+                    st.markdown(f"*Malam:* {', '.join(item['standar']['malam'])}")
+                with c_k:
+                    st.markdown(f"**KB-AG** — Fitness: `{item['kb_ag']['fitness']}`  "
+                                f"Constraint Valid: `{item['kb_ag']['pct_valid']}%`")
+                    st.markdown(f"*Pagi:* {', '.join(item['kb_ag']['pagi'])}")
+                    st.markdown(f"*Siang:* {', '.join(item['kb_ag']['siang'])}")
+                    st.markdown(f"*Malam:* {', '.join(item['kb_ag']['malam'])}")
+                st.markdown("---")
+
+            # ── Kesimpulan ────────────────────────────────────────
+            st.markdown("### Kesimpulan Evaluasi")
+
+            kesimpulan_matematis = (
+                f"KB-AG menghasilkan rata-rata fitness **{km['rata_kb']:.4f}** "
+                f"({'lebih baik' if km['kb_ag_lebih_baik'] else 'lebih buruk'} "
+                f"dibanding AG Standar {km['rata_standar']:.4f}, "
+                f"selisih {abs(km['selisih_fitness']):.4f}). "
+                f"{'KB-AG juga lebih baik' if km['kb_ag_vs_baseline'] else 'KB-AG belum melampaui'} "
+                f"dari baseline Yuliastuti et al. (2024) sebesar 15,54."
+            )
+            kesimpulan_praktis = (
+                f"Seluruh gen KB-AG valid terhadap constraint waktu makan "
+                f"({kp['constraint_valid_pct']}%), "
+                f"sedangkan AG Standar tidak menjamin hal ini. "
+                f"Threshold karbo terpenuhi pada {kp['pct_memenuhi_karbo']}% waktu makan, "
+                f"protein pada {kp['pct_memenuhi_protein']}%, "
+                f"dan lemak pada {kp['pct_memenuhi_lemak']}%."
+            )
+
+            st.info(
+                f"**Matematis:** KB-AG menghasilkan rata-rata fitness "
+                f"**{km['rata_kb']:.4f}** "
+                f"({'lebih baik' if km['kb_ag_lebih_baik'] else 'lebih buruk'} "
+                f"dibanding AG Standar {km['rata_standar']:.4f}, "
+                f"selisih {abs(km['selisih_fitness']):.4f}). "
+                f"{'KB-AG juga lebih baik' if km['kb_ag_vs_baseline'] else 'KB-AG belum melampaui'} "
+                f"dari baseline Yuliastuti et al. (2024) sebesar 15,54."
+            )
+            st.info(
+                f"**Praktis:** KB-AG memiliki constraint valid {kp['constraint_valid_pct']}% "
+                f"vs AG Standar {vr_std['pct_constraint_valid']}%. "
+                f"Threshold karbo: KB-AG {pct_kb['pct_karbo']}% vs Standar {pct_std['pct_karbo']}%. "
+                f"Threshold protein: KB-AG {pct_kb['pct_protein']}% vs Standar {pct_std['pct_protein']}%. "
+                f"Threshold lemak: KB-AG {pct_kb['pct_lemak']}% vs Standar {pct_std['pct_lemak']}%."
+            )
