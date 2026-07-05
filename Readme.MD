@@ -133,7 +133,7 @@ Aplikasi sekarang dapat diakses melalui browser Anda di alamat: **`http://localh
 * Menjelaskan mekanisme *Constrained Initialization* dan *Directed Mutation*.
 * Klik tombol **"▶ Jalankan Algoritma Genetika"** untuk memulai pencarian solusi optimal. Grafik iterasi *fitness* akan muncul secara *real-time*.
 * *Space Tampilan Antarmuka Tab 1:*
-> `![Screenshot Tab  AG](images/start.png)`
+> ![Screenshot Tab  AG](images/start.png)
 
 
 
@@ -142,7 +142,7 @@ Aplikasi sekarang dapat diakses melalui browser Anda di alamat: **`http://localh
 * Menampilkan saran menu (Pagi, Siang, Malam) terbaik yang berhasil ditemukan.
 * Menyajikan perbandingan metrik kalori dan makronutrien dengan target persentase Diet Zone beserta ukuran kedekatannya (*Euclidean Distance*).
 * *Space Tampilan Antarmuka Tab 2:*
-> `![Screenshot Tab Hasil Menu](images/result.png)`
+> ![Screenshot Tab Hasil Menu](images/result.png)
 
 
 
@@ -151,7 +151,7 @@ Aplikasi sekarang dapat diakses melalui browser Anda di alamat: **`http://localh
 * Memvisualisasikan pergerakan Kurva Konvergensi (Fitness Terbaik vs Fitness Rata-rata).
 * Menyajikan ringkasan nilai komputasi tiap harinya untuk evaluasi perbandingan nilai.
 * *Space Tampilan Antarmuka Tab 3:*
-> `![Screenshot Tab Analisis Fitness](images/analisis.png)`
+> ![Screenshot Tab Analisis Fitness](images/analisis.png)
 
 
 
@@ -159,7 +159,7 @@ Aplikasi sekarang dapat diakses melalui browser Anda di alamat: **`http://localh
 
 * Modul pengecekan otomatis (audit sistem) untuk memastikan tidak ada gen makanan yang ditempatkan pada waktu makan yang salah (contoh: menu sarapan tidak boleh ditempatkan di jadwal makan malam). Validasi 100% menandakan algoritma KB-AG bekerja dengan benar.
 * *Space Tampilan Antarmuka Tab 4:*
-> `![Screenshot Tab Verifikasi](images/verifikasi.png)`
+> ![Screenshot Tab Verifikasi](images/verifikasi.png)
 
 
 
@@ -169,4 +169,4 @@ Aplikasi sekarang dapat diakses melalui browser Anda di alamat: **`http://localh
 * Klik tombol eksekusi untuk menjalankan N jumlah pengujian.
 * Hasilnya mencakup kesimpulan evaluasi matematis (rata-rata selisih jarak target gizi) dan evaluasi praktis (persentase gen yang valid sesuai aturan waktu makannya).
 * *Space Tampilan Antarmuka Tab 5:*
-> `![Screenshot Tab Evaluasi](images/evaluasi.png)`
+> ![Screenshot Tab Evaluasi](images/evaluasi.png)
