@@ -45,7 +45,13 @@ Berdasarkan struktur folder proyek `diet_zone`, berikut adalah rincian dan fungs
 
 ## 🛠️ Panduan Penggunaan Sistem
 
-Sistem ini terbagi menjadi dua *use case* utama.
+Sebelum menjalankan salah satu dari *use case* di bawah ini, pastikan Anda telah menyalin (*clone*) repositori ini ke komputer lokal Anda dan masuk ke dalam direktori proyek.
+
+**Langkah Persiapan (Clone Repository):**
+1. Buka terminal atau *command prompt* di komputer Anda.
+2. Jalankan perintah berikut untuk mengunduh repositori:
+   ```bash
+   git clone [https://github.com/juliarta99/diet_zone.git](https://github.com/juliarta99/diet_zone.git)
 
 ### Case 1: Scraping & Persiapan Data (Opsional)
 Tahap ini digunakan jika Anda ingin melakukan *scraping* atau pemrosesan ulang terhadap data Tabel Komposisi Pangan Indonesia (TKPI).
